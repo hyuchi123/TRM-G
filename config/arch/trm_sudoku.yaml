@@ -1,0 +1,27 @@
+# 實驗 A1 / A3 / B1:原始 TRM(無 GC),Sudoku 設定(mlp_t: True)
+name: recursive_reasoning.trm@TinyRecursiveReasoningModel_ACTV1
+loss:
+  name: losses@ACTLossHead
+  loss_type: stablemax_cross_entropy
+
+halt_exploration_prob: 0.1
+halt_max_steps: 16
+
+H_cycles: 3   # T
+L_cycles: 6   # n,由命令列覆蓋
+
+H_layers: 0
+L_layers: 2
+
+hidden_size: 512
+num_heads: 8
+expansion: 4
+
+puzzle_emb_ndim: ${.hidden_size}
+
+pos_encodings: rope
+forward_dtype: bfloat16
+
+mlp_t: True   # 論文 Sudoku 最佳設定(TRM-MLP 87.4%)
+puzzle_emb_len: 16
+no_ACT_continue: True

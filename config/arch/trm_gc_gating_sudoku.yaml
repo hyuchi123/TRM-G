@@ -1,0 +1,30 @@
+# 實驗 C4 / D7/D8:TRM + GC + Learnable Gating(計畫書比較組 4「Ours」)
+name: recursive_reasoning.trm_gc_gating@TRM_GC_Gating
+loss:
+  name: losses@ACTLossHead
+  loss_type: stablemax_cross_entropy
+
+halt_exploration_prob: 0.1
+halt_max_steps: 16
+
+H_cycles: 3
+L_cycles: 6
+
+H_layers: 0
+L_layers: 2
+
+hidden_size: 512
+num_heads: 8
+expansion: 4
+
+puzzle_emb_ndim: ${.hidden_size}
+
+pos_encodings: rope
+forward_dtype: bfloat16
+
+mlp_t: True
+puzzle_emb_len: 16
+no_ACT_continue: True
+
+gc_segments: 0
+gate_init_bias: -2.0   # 初始 g≈0.12,訓練起點接近原始 TRM

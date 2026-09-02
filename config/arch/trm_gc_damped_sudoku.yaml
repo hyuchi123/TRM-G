@@ -1,0 +1,31 @@
+# 實驗 C1-C3 / D5/D6:TRM + GC + Damped Residual
+# α 由命令列覆蓋(如 arch.alpha=0.5)
+name: recursive_reasoning.trm_gc_damped@TRM_GC_Damped
+loss:
+  name: losses@ACTLossHead
+  loss_type: stablemax_cross_entropy
+
+halt_exploration_prob: 0.1
+halt_max_steps: 16
+
+H_cycles: 3
+L_cycles: 6
+
+H_layers: 0
+L_layers: 2
+
+hidden_size: 512
+num_heads: 8
+expansion: 4
+
+puzzle_emb_ndim: ${.hidden_size}
+
+pos_encodings: rope
+forward_dtype: bfloat16
+
+mlp_t: True
+puzzle_emb_len: 16
+no_ACT_continue: True
+
+gc_segments: 0
+alpha: 0.7   # z_{t+1} = (1-α)·z_t + α·Net(x,y_t,z_t)

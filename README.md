@@ -1,3 +1,12 @@
+> ## This is a research fork
+>
+> 原始專案:[SamsungSAILMontreal/TinyRecursiveModels](https://github.com/SamsungSAILMontreal/TinyRecursiveModels)
+>
+> 本 fork 探討 TRM 在深度內部遞迴下的
+> 可行性與穩定化機制。
+>
+> ---
+
 **Update: Due to many automatically generated and irrelevant issues submitted to this repo (that have been deleted now) and our limited capacity to properly maintain this repo, we have to temporaliy archive (make read-only) this and several other repos.**
 
 

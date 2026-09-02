@@ -1,0 +1,40 @@
+# Sudoku-Extreme 訓練主設定
+# 以「上游 README 的 pretrain_mlp_t_sudoku 指令」為準(作者標註 Expected: ~87% ±2%),
+# 而非論文內文。兩者在 epochs 上不一致時,以官方指令為準。
+
+defaults:
+  - arch: trm_sudoku
+  - _self_
+
+hydra:
+  output_subdir: null
+
+data_paths: ['data/sudoku-extreme']
+data_paths_test: []
+
+evaluators: []
+
+global_batch_size: 768
+
+epochs: 50000         # 上游 README 的數獨指令(論文內文寫 60k,以官方指令為準)
+eval_interval: 5000   # 必須整除 epochs
+checkpoint_every_eval: True
+
+lr: 1e-4
+lr_min_ratio: 1.0
+lr_warmup_steps: 2000
+
+beta1: 0.9
+beta2: 0.95
+weight_decay: 1.0
+puzzle_emb_weight_decay: 1.0
+puzzle_emb_lr: 1e-4   # 上游 README 數獨指令明確覆蓋;cfg_pretrain.yaml 的 1e-2 是 ARC 設定
+
+seed: 0
+min_eval_interval: 0
+
+ema: True
+ema_rate: 0.999
+freeze_weights: False
+
+project_name: TRM-G-Sudoku

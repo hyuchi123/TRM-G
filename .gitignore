@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+trmg/
+
+# 資料集(從 build_sudoku_dataset.py 產生,勿上傳;原始資料來自 HuggingFace
+# sapientinc/sudoku-extreme,有其自身授權,不轉存)
+data/
+
+# 訓練產出
+checkpoints/
+outputs/
+wandb/
+*.pt
+*.ckpt
+
+# 秘密(絕對不要 commit)
+.env
+*.key
+netrc
+.netrc
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 個人筆記與設計文件(不上傳;研究完成後再決定是否納入)
+# repo 只保留 README.md 一份說明文件
+MODIFICATIONS.md
+RUN_EXPERIMENTS.md
+Experiments.md
