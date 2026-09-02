@@ -14,10 +14,17 @@ data_paths_test: []
 
 evaluators: []
 
-global_batch_size: 768
+# 論文用 768(48GB L40S)。本研究目標硬體為單張 24GB 消費級 GPU(計畫書 5.1),
+# 實測 batch 768 需約 43GB,在 3090 上會觸發 Windows 驅動的 sysmem fallback
+# (不報 OOM,而是默默改用系統記憶體,速度慢 53 倍:0.43 秒/步 → 23 秒/步)。
+# 256 實測 VRAM 峰值 13.4GB,餘裕充足。全部實驗統一使用此值以確保內部對照有效。
+global_batch_size: 256
 
-epochs: 50000         # 上游 README 的數獨指令(論文內文寫 60k,以官方指令為準)
-eval_interval: 5000   # 必須整除 epochs
+epochs: 50000          # 上游 README 的數獨指令(論文內文寫 60k,以官方指令為準)
+# eval_interval 從 5000 改為 10000:測試集 422,786 筆、每筆跑滿 16 個 ACT 步,
+# 實測單次 eval 比整個 600-epoch 訓練還貴 6 倍(1h48m vs 17m)。
+# 改為 5 次評估可省下每個 run 約 9 小時,準確率曲線仍有足夠取樣點。
+eval_interval: 10000   # 必須整除 epochs
 checkpoint_every_eval: True
 
 lr: 1e-4

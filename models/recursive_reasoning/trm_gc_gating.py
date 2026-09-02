@@ -24,7 +24,12 @@ from models.recursive_reasoning.trm import (
     TinyRecursiveReasoningModel_ACTV1_Inner,
     TinyRecursiveReasoningModel_ACTV1,
 )
-from models.recursive_reasoning.trm_gc import TRM_GC_Config, split_segments
+from models.recursive_reasoning.trm_gc import (
+    TRM_GC_Config,
+    log_z_delta,
+    reset_z_delta_log,
+    split_segments,
+)
 
 
 class TRM_GC_Gating_Config(TRM_GC_Config):
@@ -50,9 +55,11 @@ class TRM_GC_Gating_Inner(TinyRecursiveReasoningModel_ACTV1_Inner):
         def gated_step(z, injection):
             net_out = self.L_level(z, injection, **seq_info)
             g = torch.sigmoid(self.gate_L(torch.cat([z, net_out], dim=-1)))
+            z_new = g * z + (1.0 - g) * net_out
             if not self.training:
                 self._gate_log.append(g.mean().detach())
-            return g * z + (1.0 - g) * net_out
+                log_z_delta(self, z, z_new)
+            return z_new
 
         def run_zL(z, injection, k: int):
             for _ in range(k):
@@ -61,6 +68,7 @@ class TRM_GC_Gating_Inner(TinyRecursiveReasoningModel_ACTV1_Inner):
 
         if not self.training:
             self._gate_log = []
+            reset_z_delta_log(self)
 
         z_H, z_L = carry.z_H, carry.z_L
         n = self.config.L_cycles

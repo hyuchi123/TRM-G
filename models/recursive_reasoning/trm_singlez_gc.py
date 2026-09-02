@@ -15,7 +15,11 @@ from models.recursive_reasoning.trm_singlez import (
     TinyRecursiveReasoningModel_ACTV1_Inner as SingleZ_Inner,
     TinyRecursiveReasoningModel_ACTV1 as SingleZ_ACT,
 )
-from models.recursive_reasoning.trm_gc import split_segments
+from models.recursive_reasoning.trm_gc import (
+    log_z_delta,
+    reset_z_delta_log,
+    split_segments,
+)
 
 
 class SRM_GC_Config(SingleZ_Config):
@@ -32,11 +36,17 @@ class SRM_GC_Inner(SingleZ_Inner):
         # 原版 SRM 每輪:n 步帶 input 注入 + 1 步不帶注入
         def run_injected(z, inj, k: int):
             for _ in range(k):
-                z = self.L_level(z + inj, **seq_info)
+                z_new = self.L_level(z + inj, **seq_info)
+                if not self.training:
+                    log_z_delta(self, z, z_new)
+                z = z_new
             return z
 
         def run_plain(z):
             return self.L_level(z, **seq_info)
+
+        if not self.training:
+            reset_z_delta_log(self)
 
         z_L = carry.z_L
         n = self.config.L_cycles

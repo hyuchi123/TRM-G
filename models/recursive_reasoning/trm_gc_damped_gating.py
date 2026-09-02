@@ -17,7 +17,11 @@ from models.recursive_reasoning.trm import (
     TinyRecursiveReasoningModel_ACTV1InnerCarry,
     TinyRecursiveReasoningModel_ACTV1,
 )
-from models.recursive_reasoning.trm_gc import split_segments
+from models.recursive_reasoning.trm_gc import (
+    log_z_delta,
+    reset_z_delta_log,
+    split_segments,
+)
 from models.recursive_reasoning.trm_gc_gating import (
     TRM_GC_Gating_Config,
     TRM_GC_Gating_Inner,
@@ -41,10 +45,12 @@ class TRM_GC_DampedGating_Inner(TRM_GC_Gating_Inner):
         def damped_gated_step(z, injection):
             net_out = self.L_level(z, injection, **seq_info)
             g = torch.sigmoid(self.gate_L(torch.cat([z, net_out], dim=-1)))
+            candidate = g * z + (1.0 - g) * net_out
+            z_new = (1.0 - alpha) * z + alpha * candidate
             if not self.training:
                 self._gate_log.append(g.mean().detach())
-            candidate = g * z + (1.0 - g) * net_out
-            return (1.0 - alpha) * z + alpha * candidate
+                log_z_delta(self, z, z_new)
+            return z_new
 
         def run_zL(z, injection, k: int):
             for _ in range(k):
@@ -53,6 +59,7 @@ class TRM_GC_DampedGating_Inner(TRM_GC_Gating_Inner):
 
         if not self.training:
             self._gate_log = []
+            reset_z_delta_log(self)
 
         z_H, z_L = carry.z_H, carry.z_L
         n = self.config.L_cycles

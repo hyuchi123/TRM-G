@@ -17,7 +17,12 @@ from models.recursive_reasoning.trm import (
     TinyRecursiveReasoningModel_ACTV1_Inner,
     TinyRecursiveReasoningModel_ACTV1,
 )
-from models.recursive_reasoning.trm_gc import TRM_GC_Config, split_segments
+from models.recursive_reasoning.trm_gc import (
+    TRM_GC_Config,
+    log_z_delta,
+    reset_z_delta_log,
+    split_segments,
+)
 
 
 class TRM_GC_Damped_Config(TRM_GC_Config):
@@ -34,8 +39,14 @@ class TRM_GC_Damped_Inner(TinyRecursiveReasoningModel_ACTV1_Inner):
 
         def run_zL(z, injection, k: int):
             for _ in range(k):
-                z = (1.0 - alpha) * z + alpha * self.L_level(z, injection, **seq_info)
+                z_new = (1.0 - alpha) * z + alpha * self.L_level(z, injection, **seq_info)
+                if not self.training:
+                    log_z_delta(self, z, z_new)
+                z = z_new
             return z
+
+        if not self.training:
+            reset_z_delta_log(self)
 
         z_H, z_L = carry.z_H, carry.z_L
         n = self.config.L_cycles

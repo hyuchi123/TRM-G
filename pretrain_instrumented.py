@@ -6,8 +6,14 @@
 新增的 WandB 記錄:
   train/grad_norm : 反向傳播後、optimizer step 前的全模型梯度 L2 範數
                     (對應計畫書評估指標 3:驗證梯度消失是否緩解)
-  train/z_L_var   : 潛在狀態 z_L 的變異數(偵測數值震盪 / 發散 / 坍塌)
+  train/z_L_var   : 潛在狀態 z_L 的變異數
   train/z_H_var   : 答案狀態 z_H 的變異數(TRM 雙狀態才有,SRM 自動略過)
+                    ⚠️ 這兩項因架構每步 rms_norm 而恆等於 1.0(實測 0.9975~1.0000),
+                       無法診斷數值震盪。保留僅為記錄完整性,實際診斷請看下面的 z_delta。
+  eval/z_delta_mean / _max / _last :
+                    潛在狀態逐步位移量 Δ_t = ||z_{t+1} − z_t|| / ||z_t||,
+                    取代變異數作為「數值震盪」的主要診斷指標。
+                    對應計畫書評估指標「Latent z 變異數」與 5.2-2「推論軌跡平滑化」。
   train/vram_peak_gb     : torch.cuda.max_memory_allocated(),自訓練開始的累計峰值
                            (對應 Experiments.md 評估指標「VRAM 使用量」,驗證 GC 效果)
   train/vram_reserved_gb : torch.cuda.max_memory_reserved(),含 allocator 保留量,
@@ -128,6 +134,19 @@ def evaluate(config, train_state, eval_loader, eval_metadata, evaluators, rank, 
     )
 
     inner = _unwrap_inner(train_state.model)
+
+    # 潛在狀態逐步位移量 Δ_t = ||z_{t+1} − z_t|| / ||z_t||(數值震盪的主要診斷指標)
+    # 取代 z_L_var——後者因架構每步 rms_norm 而恆等於 1,無法區分穩定與震盪。
+    # 詳見 models/recursive_reasoning/trm_gc.py 的說明。
+    z_delta_log = getattr(inner, "_z_delta_log", None) if inner is not None else None
+    if z_delta_log and rank == 0:
+        deltas = torch.stack([d.float() for d in z_delta_log])
+        if reduced_metrics is None:
+            reduced_metrics = {}
+        reduced_metrics["eval/z_delta_mean"] = deltas.mean().item()
+        reduced_metrics["eval/z_delta_max"] = deltas.max().item()
+        reduced_metrics["eval/z_delta_last"] = deltas[-1].item()
+
     gate_log = getattr(inner, "_gate_log", None) if inner is not None else None
     if gate_log:
         # _gate_log 每次 forward 都會重置,此處拿到的是 eval 最後一個
