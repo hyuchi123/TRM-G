@@ -156,8 +156,11 @@ pretrain.evaluate = evaluate
 # 命令列的 --config-name cfg_sudoku 仍會正常覆蓋這裡的預設值。
 _orig_launch = getattr(pretrain.launch, "__wrapped__", None)
 
+# 用絕對路徑,不依賴 Hydra 去推測「呼叫端檔案在哪」——那個推測正是原本出錯的環節。
+_CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config")
 
-@hydra.main(config_path="config", config_name="cfg_pretrain", version_base=None)
+
+@hydra.main(config_path=_CONFIG_DIR, config_name="cfg_pretrain", version_base=None)
 def launch(hydra_config: DictConfig):
     if _orig_launch is not None:
         # functools.wraps 保留的未裝飾原函數,直接執行其內容
