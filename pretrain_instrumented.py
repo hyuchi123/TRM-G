@@ -22,8 +22,10 @@
 """
 import os
 
+import hydra
 import torch
 import torch.distributed as dist
+from omegaconf import DictConfig
 
 import pretrain
 from pretrain import compute_lr
@@ -145,9 +147,28 @@ pretrain.train_batch = train_batch
 pretrain.evaluate = evaluate
 
 
+# Hydra 的 config_path 是相對於「定義 @hydra.main 的那個模組」解析的。
+# 直接呼叫 pretrain.launch() 時,該函數的 __module__ 是 "pretrain" 而非 "__main__",
+# Hydra 會改用 Python 套件的方式去找名為 config 的模組,報:
+#   Primary config module 'config' not found. Check that it's ... contains an __init__.py
+# 解法:在本檔(即 __main__)重新宣告一次 @hydra.main,參數與 pretrain.py 完全相同,
+# 讓 Hydra 以本檔所在目錄為基準找到 config/,再把解析好的 config 交給原始 launch 執行。
+# 命令列的 --config-name cfg_sudoku 仍會正常覆蓋這裡的預設值。
+_orig_launch = getattr(pretrain.launch, "__wrapped__", None)
+
+
+@hydra.main(config_path="config", config_name="cfg_pretrain", version_base=None)
+def launch(hydra_config: DictConfig):
+    if _orig_launch is not None:
+        # functools.wraps 保留的未裝飾原函數,直接執行其內容
+        return _orig_launch(hydra_config)
+    # 後備路徑:Hydra 的 cfg_passthrough——傳入既有 config 時會跳過 Hydra 直接執行
+    return pretrain.launch(hydra_config)
+
+
 if __name__ == "__main__":
     try:
-        pretrain.launch()
+        launch()
     finally:
         # 不論正常結束或 OOM 崩潰,都把 VRAM 峰值印出來
         # (B 組要記錄 OOM 當下的用量,此時 wandb 可能來不及上傳最後一筆)
