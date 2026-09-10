@@ -127,11 +127,35 @@ _orig_evaluate = pretrain.evaluate
 
 
 def evaluate(config, train_state, eval_loader, eval_metadata, evaluators, rank, world_size, cpu_group):
+    # ---- 隔離量測「單次 eval 本身」的 VRAM 峰值 ----
+    # 背景:A1-repro 與 A3 兩次崩潰都發生在 eval 批次迴圈中間,且 train/vram_peak_gb
+    # (自訓練開始的累計峰值)在兩次崩潰的 run 都出現遠高於短測(跳過 eval)的數字
+    # (例如 A3 的 n=8 記到 17.97GB,遠高於 n=16 含 eval 的短測 7.97GB)。
+    # 懷疑來源:EMA 切換時 `copy.deepcopy(train_state)` + `ema_helper.ema_copy(...)`
+    # (pretrain.py launch() 內,SWITCH TO EMA 那段)會短暫疊加模型/optimizer 記憶體,
+    # 但那段不在本檔案的攔截範圍內,故改用此處在 eval 迴圈本身起訖時重設/量測峰值,
+    # 隔離出「單純跑完整個 eval batch 迴圈」實際需要多少 VRAM。
+    # ⚠️ 副作用:此重設之後,train/vram_peak_gb 不再是「自訓練開始」的累計峰值,
+    # 而變成「自上次 eval 以來」的峰值——對長 run 而言此資訊反而更有用(能看出
+    # 是哪個 iter 的峰值特別高),故保留此副作用,不另外復原。
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+
     # 先跑原始 evaluate,結束後補記 Gating 的 g 值統計
     reduced_metrics = _orig_evaluate(
         config, train_state, eval_loader, eval_metadata, evaluators,
         rank=rank, world_size=world_size, cpu_group=cpu_group,
     )
+
+    if torch.cuda.is_available() and rank == 0:
+        _GB = 1024 ** 3
+        eval_peak = torch.cuda.max_memory_allocated() / _GB
+        eval_reserved = torch.cuda.max_memory_reserved() / _GB
+        print(f"[EVAL VRAM] peak allocated = {eval_peak:.2f} GB, peak reserved = {eval_reserved:.2f} GB", flush=True)
+        if reduced_metrics is None:
+            reduced_metrics = {}
+        reduced_metrics["eval/vram_peak_gb"] = eval_peak
+        reduced_metrics["eval/vram_reserved_gb"] = eval_reserved
 
     inner = _unwrap_inner(train_state.model)
 
