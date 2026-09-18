@@ -126,6 +126,13 @@ def evaluate_on_train_sample(model, config: PretrainConfig, rank: int, world_siz
     )
     dataset = PuzzleDataset(ds_config, split="train")
 
+    # 提前載入,才能從實際陣列長度算出真正的抽樣數(total_groups 是基礎題目數,
+    # 不是資料增強後的總筆數——之前的版本誤用 total_groups × mean_puzzle_examples 算出
+    # 1000,但實際抽樣邏輯用的是正確的 len(data["inputs"])≈100萬筆,抽樣本身沒有問題,
+    # 只有這裡回報的數字算錯)
+    dataset._lazy_load_dataset()
+    n_examples = sum(len(d["inputs"]) for d in dataset._data.values())
+
     was_training = model.training
     model.eval()
     loader = _iter_train_sample(dataset, sample_size, sample_seed, config.global_batch_size)
@@ -135,7 +142,7 @@ def evaluate_on_train_sample(model, config: PretrainConfig, rank: int, world_siz
 
     if result is None:
         return None
-    result["n_sampled"] = min(sample_size, dataset.metadata.total_groups * int(dataset.metadata.mean_puzzle_examples))
+    result["n_sampled"] = min(sample_size, n_examples)
     return result
 
 
