@@ -20,6 +20,12 @@
                            與 nvidia-smi 顯示的數字較接近
   eval/gate_mean  : Gating 變體在 eval 時的 g 值平均(非 Gating 模型自動略過)
   eval/gate_std   : 同上,標準差
+  eval/train_sample_exact_accuracy / _accuracy :
+                    在訓練集固定隨機抽樣(5萬筆,種子42)上、用當次 EMA 權重算出的準確率。
+                    與 all.exact_accuracy(EMA + 完整測試集)公平比較,用於判斷 overfitting——
+                    原始的 train/exact_accuracy 因用「未 EMA 權重 + 單一 batch」,不可與
+                    all.exact_accuracy 直接比較(EMA 對 exact_accuracy 影響極大,論文 Table 1
+                    的 no-EMA ablation 顯示可差到 7.5 個百分點)。詳見 eval_train_sample.py。
 
 用法:指令與 pretrain.py 完全相同,只把入口換成本檔:
   python pretrain_instrumented.py --config-name cfg_sudoku arch=trm_gc_sudoku ...
@@ -35,6 +41,7 @@ from omegaconf import DictConfig
 
 import pretrain
 from pretrain import compute_lr
+from eval_train_sample import evaluate_on_train_sample
 
 INSTRUMENT_EVERY = int(os.environ.get("INSTRUMENT_EVERY", "50"))
 
@@ -181,6 +188,19 @@ def evaluate(config, train_state, eval_loader, eval_metadata, evaluators, rank, 
                 reduced_metrics = {}
             reduced_metrics["eval/gate_mean"] = gates.mean().item()
             reduced_metrics["eval/gate_std"] = gates.std().item()
+
+    # 訓練集固定抽樣 + EMA 權重 eval——與 all.exact_accuracy 公平比較,判斷 overfitting。
+    # train_state.model 此時已是 launch() 切換過的 EMA 副本(見 pretrain.py 的 SWITCH TO EMA)。
+    if rank == 0:
+        print("[train sample eval] 開始在訓練集固定抽樣上評估(用於 Train-Test Gap 判讀)...", flush=True)
+    train_sample_result = evaluate_on_train_sample(train_state.model, config, rank=rank, world_size=world_size)
+    if train_sample_result is not None and rank == 0:
+        if reduced_metrics is None:
+            reduced_metrics = {}
+        reduced_metrics["eval/train_sample_exact_accuracy"] = train_sample_result["exact_accuracy"]
+        reduced_metrics["eval/train_sample_accuracy"] = train_sample_result["accuracy"]
+        print(f"[train sample eval] n_sampled={train_sample_result['n_sampled']}, "
+              f"exact_accuracy={train_sample_result['exact_accuracy']:.4f}", flush=True)
 
     return reduced_metrics
 
